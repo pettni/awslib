@@ -11,12 +11,20 @@ local digest = require 'openssl.digest'
 local hmac = require 'openssl.hmac'
 
 local function hex_encode(str)
-  return str:gsub('.', function(c) return ('%02x'):format(string.byte(c)) end)
+  return str:gsub('.', function(c) return ('%02x'):format(c:byte()) end)
 end
 
 local function sha256(str) return digest.new('sha256'):final(str) end
 
 local function hmac_sha256(key, str) return hmac.new(key, 'sha256'):final(str) end
+
+local function trim(str) return str:gsub('^%s*(.-)%s*$', '%1') end
+
+local function url_encode(str, encode_fw_slash)
+  local pattern = '[^A-Za-z0-9%-%.%_%~%/]'
+  if encode_fw_slash then pattern = '[^A-Za-z0-9%-%.%_%~]' end
+  return str:gsub(pattern, function(c) return ('%%%02X'):format(c:byte()) end)
+end
 
 local function get_signature_key(key, date_stamp, region_name, service_name)
   local k_date = hmac_sha256('AWS4' .. key, date_stamp)
@@ -27,13 +35,13 @@ local function get_signature_key(key, date_stamp, region_name, service_name)
 end
 
 local function create_canonical_request(method, uri, query_params, headers, hashed_payload)
-  local canonical_uri = uri
+  local canonical_uri = url_encode(uri)
 
   local canonical_querystring = ''
   if query_params then
     local sorted_params = {}
     for k, v in pairs(query_params) do
-      table.insert(sorted_params, { k, v })
+      table.insert(sorted_params, { url_encode(k, true), url_encode(v, true) })
     end
     table.sort(sorted_params, function(a, b) return a[1] < b[1] end)
     for _, pair in ipairs(sorted_params) do
@@ -44,7 +52,7 @@ local function create_canonical_request(method, uri, query_params, headers, hash
 
   local sorted_headers = {}
   for k, v in pairs(headers) do
-    table.insert(sorted_headers, { string.lower(k), v })
+    table.insert(sorted_headers, { string.lower(k), trim(v) })
   end
   table.sort(sorted_headers, function(a, b) return a[1] < b[1] end)
 
