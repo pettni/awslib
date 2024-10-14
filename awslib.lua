@@ -41,7 +41,7 @@ local function create_canonical_request(method, uri, query_params, headers, hash
   if query_params then
     local sorted_params = {}
     for k, v in pairs(query_params) do
-      table.insert(sorted_params, { url_encode(k, true), url_encode(v, true) })
+      table.insert(sorted_params, { url_encode(k, true), url_encode(tostring(v), true) })
     end
     table.sort(sorted_params, function(a, b) return a[1] < b[1] end)
     for _, pair in ipairs(sorted_params) do
@@ -85,10 +85,10 @@ end
 ---Note: grabs the first profile; does not check that lines are adjacent.
 ---
 ---@param filename string
----@return string | nil, string | nil
+---@return string | nil, string | nil, string | nil
 ---@nodiscard
 function awslib.read_aws_credentials(filename)
-  local access_key_id, secret_access_key
+  local access_key_id, secret_access_key, session_token
 
   local file = io.open(filename, 'r')
   if not file then
@@ -97,17 +97,19 @@ function awslib.read_aws_credentials(filename)
   end
 
   for line in file:lines() do
-    local key, value = line:match '(%S+)%s*=%s*(%S+)'
+    local key, value = line:match '([a-z%_]+)%s*=%s*(%S+)'
     if key == 'aws_access_key_id' then
       access_key_id = value
     elseif key == 'aws_secret_access_key' then
       secret_access_key = value
+    elseif key == 'aws_session_token' then
+      session_token = value
     end
   end
 
   file:close()
 
-  return access_key_id, secret_access_key
+  return access_key_id, secret_access_key, session_token
 end
 
 ---
